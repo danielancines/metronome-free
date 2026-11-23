@@ -7,7 +7,7 @@ import Foundation
 
 struct PracticeSession: Identifiable, Codable, Equatable {
     let id: UUID
-    let date: Date
+    var date: Date
     var duration: TimeInterval
     var bpm: Int
     let beatsPerMeasure: Int

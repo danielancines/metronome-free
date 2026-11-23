@@ -16,6 +16,7 @@ struct HistoryView: View {
     @State private var showingClearAllConfirmation = false
     @State private var sessionPendingDeletion: PracticeSession?
     @State private var sessionBeingEdited: PracticeSession?
+    @State private var isAddingSession = false
 
     var body: some View {
         NavigationStack {
@@ -37,13 +38,15 @@ struct HistoryView: View {
                                         sessionRow(session)
                                             .contentShape(Rectangle())
                                             .onTapGesture { sessionBeingEdited = session }
-                                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                                 Button {
                                                     sessionBeingEdited = session
                                                 } label: {
                                                     Label("Edit", systemImage: "pencil")
                                                 }
                                                 .tint(Theme.accent)
+                                            }
+                                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                                 Button(role: .destructive) {
                                                     sessionPendingDeletion = session
                                                 } label: {
@@ -74,6 +77,15 @@ struct HistoryView: View {
                     Button("Done") { dismiss() }
                         .foregroundStyle(Theme.accent)
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isAddingSession = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .accessibilityLabel("Add Session")
+                }
                 if !historyStore.sessions.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Button(role: .destructive) {
@@ -89,7 +101,20 @@ struct HistoryView: View {
                 expandedDays.insert(Calendar.current.startOfDay(for: Date()))
             }
             .sheet(item: $sessionBeingEdited) { session in
-                EditSessionView(session: session) { historyStore.update($0) }
+                EditSessionView(session: session, isNew: false) { historyStore.update($0) }
+            }
+            .sheet(isPresented: $isAddingSession) {
+                EditSessionView(
+                    session: PracticeSession(
+                        date: Date(),
+                        duration: 300,
+                        bpm: 100,
+                        beatsPerMeasure: 4,
+                        subdivision: .quarter,
+                        usedSpeedTrainer: false
+                    ),
+                    isNew: true
+                ) { historyStore.add($0) }
             }
             .alert(
                 "Clear All Practice History?",
@@ -239,15 +264,19 @@ struct HistoryView: View {
 
 private struct EditSessionView: View {
     let session: PracticeSession
+    let isNew: Bool
     let onSave: (PracticeSession) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var minutes: Int
     @State private var seconds: Int
     @State private var bpm: Int
+    @State private var date: Date
 
-    init(session: PracticeSession, onSave: @escaping (PracticeSession) -> Void) {
+    init(session: PracticeSession, isNew: Bool, onSave: @escaping (PracticeSession) -> Void) {
         self.session = session
+        self.isNew = isNew
+        _date = State(initialValue: session.date)
         self.onSave = onSave
         let total = Int(session.duration.rounded())
         _minutes = State(initialValue: total / 60)
@@ -261,6 +290,9 @@ private struct EditSessionView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Date") {
+                    DatePicker("Started", selection: $date, in: ...Date())
+                }
                 Section("Duration") {
                     Stepper("Minutes: \(minutes)", value: $minutes, in: 0...999)
                     Stepper("Seconds: \(seconds)", value: $seconds, in: 0...59)
@@ -271,7 +303,7 @@ private struct EditSessionView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
-            .navigationTitle("Edit Session")
+            .navigationTitle(isNew ? "New Session" : "Edit Session")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -284,6 +316,7 @@ private struct EditSessionView: View {
                         var updated = session
                         updated.duration = TimeInterval(totalSeconds)
                         updated.bpm = bpm
+                        updated.date = date
                         onSave(updated)
                         dismiss()
                     }

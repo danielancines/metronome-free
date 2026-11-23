@@ -24,10 +24,13 @@ struct ContentView: View {
             Theme.background.ignoresSafeArea()
 
             FitToHeight {
-                if useTwoColumn {
-                    twoColumnLayout
-                } else {
-                    singleColumnLayout
+                VStack(spacing: 12) {
+                    if useTwoColumn {
+                        twoColumnLayout
+                    } else {
+                        singleColumnLayout
+                    }
+                    footer
                 }
             }
             .padding(useTwoColumn ? 28 : 20)
@@ -96,11 +99,28 @@ struct ContentView: View {
         }
     }
 
+    private var footer: some View {
+        VStack(spacing: 2) {
+            Text(versionText)
+                .accessibilityIdentifier("VersionLabel")
+            Text("Copyright by Evil Dan")
+        }
+        .font(.caption2)
+        .foregroundStyle(Theme.textSecondary.opacity(0.7))
+    }
+
+    private var versionText: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "Version \(version) (\(build))"
+    }
+
     private var header: some View {
         HStack {
             Color.clear.frame(width: 28, height: 28)
             Spacer()
-            Text("METRONOME")
+            Text("EVIL METRONOME")
                 .font(.caption.bold())
                 .tracking(3)
                 .foregroundStyle(Theme.textSecondary)

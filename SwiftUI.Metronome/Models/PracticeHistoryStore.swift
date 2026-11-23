@@ -21,6 +21,9 @@ final class PracticeHistoryStore: ObservableObject {
 
     func add(_ session: PracticeSession) {
         sessions.insert(session, at: 0)
+        // Manually added sessions can be backdated, so keep newest-first
+        // ordering before trimming the oldest ones.
+        sessions.sort { $0.date > $1.date }
         if sessions.count > maxStoredSessions {
             sessions.removeLast(sessions.count - maxStoredSessions)
         }
