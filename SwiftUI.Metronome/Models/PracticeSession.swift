@@ -15,6 +15,14 @@ enum SessionKind: String, Codable {
 struct RepertoireSong: Codable, Equatable, Hashable {
     var title: String
     var band: String
+    /// Album cover from the music search, when the song was picked from it.
+    var artworkURL: String?
+
+    init(title: String, band: String, artworkURL: String? = nil) {
+        self.title = title
+        self.band = band
+        self.artworkURL = artworkURL
+    }
 }
 
 struct PracticeSession: Identifiable, Codable, Equatable {

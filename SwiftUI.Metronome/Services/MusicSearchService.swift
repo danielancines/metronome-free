@@ -12,6 +12,7 @@ struct MusicSearchResult: Identifiable, Hashable {
     let id: Int
     let title: String
     let band: String
+    let artworkURL: String?
 }
 
 enum MusicSearchService {
@@ -20,6 +21,7 @@ enum MusicSearchService {
             let trackId: Int?
             let trackName: String?
             let artistName: String?
+            let artworkUrl100: String?
         }
         let results: [Item]
     }
@@ -56,7 +58,7 @@ enum MusicSearchService {
             // The same song often appears once per album/compilation.
             let key = "\(title.lowercased())|\(band.lowercased())"
             guard seen.insert(key).inserted else { continue }
-            results.append(MusicSearchResult(id: id, title: title, band: band))
+            results.append(MusicSearchResult(id: id, title: title, band: band, artworkURL: item.artworkUrl100))
             if results.count == limit { break }
         }
         return results

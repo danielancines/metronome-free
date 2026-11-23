@@ -250,10 +250,24 @@ struct HistoryView: View {
             .font(.caption.bold())
             .foregroundStyle(Theme.accentSecondary)
             if session.kind == .repertoire, !session.songs.isEmpty {
-                Text(session.songs.map { $0.band.isEmpty ? $0.title : "\($0.title) — \($0.band)" }.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(2)
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(session.songs.enumerated()), id: \.offset) { _, song in
+                        HStack(spacing: 8) {
+                            ArtworkView(urlString: song.artworkURL, size: 32)
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(song.title)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Theme.textPrimary)
+                                if !song.band.isEmpty {
+                                    Text(song.band)
+                                        .font(.caption2)
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 2)
             }
         }
         .padding(.vertical, 4)
@@ -293,6 +307,41 @@ private struct SongEntry: Identifiable {
     let id = UUID()
     var title: String
     var band: String
+    var artworkURL: String?
+}
+
+/// Album cover thumbnail, with a neutral placeholder when there is none.
+private struct ArtworkView: View {
+    let urlString: String?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let urlString, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFill()
+                    } else {
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.15))
+        .accessibilityHidden(true)
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            Theme.surfaceElevated
+            Image(systemName: "music.note")
+                .font(.system(size: size * 0.4))
+                .foregroundStyle(Theme.textSecondary)
+        }
+    }
 }
 
 /// One song in the repertoire form: title + band, with live suggestions from
@@ -305,35 +354,48 @@ private struct SongRowView: View {
     @State private var results: [MusicSearchResult] = []
     @State private var isSearching = false
     @State private var searchTask: Task<Void, Never>?
+    @State private var justSelected = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                TextField("Song", text: $song.title)
-                    .focused($titleFocused)
-                    .onChange(of: song.title) { _, newValue in
-                        search(for: newValue)
-                    }
-                if isSearching {
-                    ProgressView().controlSize(.small)
-                }
-            }
-            HStack {
-                TextField("Band", text: $song.band)
-                if !bandSuggestions.isEmpty {
-                    Menu {
-                        ForEach(bandSuggestions, id: \.self) { band in
-                            Button(band) { song.band = band }
+            HStack(spacing: 10) {
+                ArtworkView(urlString: song.artworkURL, size: 44)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        TextField("Song", text: $song.title)
+                            .focused($titleFocused)
+                            .onChange(of: song.title) { _, newValue in
+                                if justSelected {
+                                    justSelected = false
+                                    return
+                                }
+                                // The cover belonged to the previously picked
+                                // song; typing a different title invalidates it.
+                                song.artworkURL = nil
+                                search(for: newValue)
+                            }
+                        if isSearching {
+                            ProgressView().controlSize(.small)
                         }
-                    } label: {
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.caption)
                     }
-                    .accessibilityLabel("Choose Band")
+                    HStack {
+                        TextField("Band", text: $song.band)
+                        if !bandSuggestions.isEmpty {
+                            Menu {
+                                ForEach(bandSuggestions, id: \.self) { band in
+                                    Button(band) { song.band = band }
+                                }
+                            } label: {
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption)
+                            }
+                            .accessibilityLabel("Choose Band")
+                        }
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textSecondary)
                 }
             }
-            .font(.subheadline)
-            .foregroundStyle(Theme.textSecondary)
 
             if titleFocused, !results.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
@@ -341,13 +403,16 @@ private struct SongRowView: View {
                         Button {
                             select(result)
                         } label: {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(result.title)
-                                    .font(.subheadline)
-                                    .foregroundStyle(Theme.textPrimary)
-                                Text(result.band)
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.textSecondary)
+                            HStack(spacing: 10) {
+                                ArtworkView(urlString: result.artworkURL, size: 36)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(result.title)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text(result.band)
+                                        .font(.caption)
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 6)
@@ -391,8 +456,12 @@ private struct SongRowView: View {
         titleFocused = false
         results = []
         isSearching = false
+        // Setting an identical title doesn't trigger onChange, so only arm the
+        // flag when the title will actually change.
+        justSelected = song.title != result.title
         song.title = result.title
         song.band = result.band
+        song.artworkURL = result.artworkURL
     }
 }
 
@@ -419,7 +488,7 @@ private struct EditSessionView: View {
         _seconds = State(initialValue: total % 60)
         _bpm = State(initialValue: session.bpm == 0 ? 100 : session.bpm)
         _date = State(initialValue: session.date)
-        let existing = session.songs.map { SongEntry(title: $0.title, band: $0.band) }
+        let existing = session.songs.map { SongEntry(title: $0.title, band: $0.band, artworkURL: $0.artworkURL) }
         _songs = State(initialValue: existing.isEmpty && session.kind == .repertoire ? [SongEntry(title: "", band: "")] : existing)
     }
 
@@ -431,7 +500,8 @@ private struct EditSessionView: View {
         songs.map {
             RepertoireSong(
                 title: $0.title.trimmingCharacters(in: .whitespacesAndNewlines),
-                band: $0.band.trimmingCharacters(in: .whitespacesAndNewlines)
+                band: $0.band.trimmingCharacters(in: .whitespacesAndNewlines),
+                artworkURL: $0.artworkURL
             )
         }
         .filter { !$0.title.isEmpty || !$0.band.isEmpty }
