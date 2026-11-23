@@ -8,8 +8,8 @@ import Foundation
 struct PracticeSession: Identifiable, Codable, Equatable {
     let id: UUID
     let date: Date
-    let duration: TimeInterval
-    let bpm: Int
+    var duration: TimeInterval
+    var bpm: Int
     let beatsPerMeasure: Int
     let subdivision: Subdivision
     let usedSpeedTrainer: Bool

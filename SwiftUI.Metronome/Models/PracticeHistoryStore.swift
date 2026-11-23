@@ -27,6 +27,12 @@ final class PracticeHistoryStore: ObservableObject {
         save()
     }
 
+    func update(_ session: PracticeSession) {
+        guard let index = sessions.firstIndex(where: { $0.id == session.id }) else { return }
+        sessions[index] = session
+        save()
+    }
+
     func delete(_ session: PracticeSession) {
         sessions.removeAll { $0.id == session.id }
         save()

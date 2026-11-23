@@ -138,6 +138,7 @@ final class MetronomeEngine: ObservableObject {
     }
 
     private func configureAudioSession() {
+        #if os(iOS) || os(visionOS)
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
@@ -145,9 +146,11 @@ final class MetronomeEngine: ObservableObject {
         } catch {
             print("MetronomeEngine: failed to configure audio session — \(error)")
         }
+        #endif
     }
 
     private func observeInterruptions() {
+        #if os(iOS) || os(visionOS)
         interruptionObserver = NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: nil,
@@ -160,6 +163,7 @@ final class MetronomeEngine: ObservableObject {
                   type == .began else { return }
             self.stop()
         }
+        #endif
     }
 
     // MARK: Transport

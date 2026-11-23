@@ -15,6 +15,7 @@ struct HistoryView: View {
     @State private var expandedDays: Set<Date> = []
     @State private var showingClearAllConfirmation = false
     @State private var sessionPendingDeletion: PracticeSession?
+    @State private var sessionBeingEdited: PracticeSession?
 
     var body: some View {
         NavigationStack {
@@ -34,7 +35,15 @@ struct HistoryView: View {
                                 DisclosureGroup(isExpanded: isExpandedBinding(for: group.day)) {
                                     ForEach(group.sessions) { session in
                                         sessionRow(session)
+                                            .contentShape(Rectangle())
+                                            .onTapGesture { sessionBeingEdited = session }
                                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                                Button {
+                                                    sessionBeingEdited = session
+                                                } label: {
+                                                    Label("Edit", systemImage: "pencil")
+                                                }
+                                                .tint(Theme.accent)
                                                 Button(role: .destructive) {
                                                     sessionPendingDeletion = session
                                                 } label: {
@@ -49,13 +58,17 @@ struct HistoryView: View {
                             }
                         }
                         .scrollContentBackground(.hidden)
+                        #if os(iOS)
                         .listStyle(.insetGrouped)
+                        #endif
                         .tint(Theme.accentSecondary)
                     }
                 }
             }
             .navigationTitle("Practice History")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -74,6 +87,9 @@ struct HistoryView: View {
             }
             .onAppear {
                 expandedDays.insert(Calendar.current.startOfDay(for: Date()))
+            }
+            .sheet(item: $sessionBeingEdited) { session in
+                EditSessionView(session: session) { historyStore.update($0) }
             }
             .alert(
                 "Clear All Practice History?",
@@ -216,5 +232,66 @@ struct HistoryView: View {
             return String(format: "%d:%02d:%02d", hours, minutes, seconds)
         }
         return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+// MARK: - Edit sheet
+
+private struct EditSessionView: View {
+    let session: PracticeSession
+    let onSave: (PracticeSession) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var minutes: Int
+    @State private var seconds: Int
+    @State private var bpm: Int
+
+    init(session: PracticeSession, onSave: @escaping (PracticeSession) -> Void) {
+        self.session = session
+        self.onSave = onSave
+        let total = Int(session.duration.rounded())
+        _minutes = State(initialValue: total / 60)
+        _seconds = State(initialValue: total % 60)
+        _bpm = State(initialValue: session.bpm)
+    }
+
+    private var bpmRange: ClosedRange<Int> { 30...300 }
+    private var totalSeconds: Int { minutes * 60 + seconds }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Duration") {
+                    Stepper("Minutes: \(minutes)", value: $minutes, in: 0...999)
+                    Stepper("Seconds: \(seconds)", value: $seconds, in: 0...59)
+                }
+                Section("Tempo") {
+                    Stepper("\(bpm) BPM", value: $bpm, in: bpmRange)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background.ignoresSafeArea())
+            .navigationTitle("Edit Session")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        var updated = session
+                        updated.duration = TimeInterval(totalSeconds)
+                        updated.bpm = bpm
+                        onSave(updated)
+                        dismiss()
+                    }
+                    .disabled(totalSeconds == 0)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .tint(Theme.accent)
     }
 }
