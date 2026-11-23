@@ -46,6 +46,20 @@ final class PracticeHistoryStore: ObservableObject {
         save()
     }
 
+    /// Every band used in a repertoire so far, alphabetical, without duplicates
+    /// (case-insensitive) — used to suggest bands when adding songs.
+    var knownBands: [String] {
+        var seen = Set<String>()
+        var bands: [String] = []
+        for song in sessions.flatMap(\.songs) {
+            let band = song.band.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !band.isEmpty, seen.insert(band.lowercased()).inserted {
+                bands.append(band)
+            }
+        }
+        return bands.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
     var totalPracticeTime: TimeInterval {
         sessions.reduce(0) { $0 + $1.duration }
     }
