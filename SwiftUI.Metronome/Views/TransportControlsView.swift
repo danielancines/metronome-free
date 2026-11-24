@@ -9,6 +9,7 @@ struct TransportControlsView: View {
     @ObservedObject var engine: MetronomeEngine
 
     var body: some View {
+        VStack(spacing: 14) {
         HStack(spacing: 28) {
             circleButton(
                 systemImage: "hand.tap.fill",
@@ -18,16 +19,17 @@ struct TransportControlsView: View {
             )
 
             Button(action: engine.togglePlay) {
-                Image(systemName: engine.isPlaying ? "stop.fill" : "play.fill")
+                Image(systemName: engine.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 32))
                     .frame(width: 92, height: 92)
                     .background(
-                        engine.isPlaying ? Theme.danger : Theme.accent,
+                        engine.isPlaying ? Theme.accentSecondary : Theme.accent,
                         in: Circle()
                     )
                     .foregroundStyle(.black)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(engine.isPlaying ? "Pause" : (engine.isPaused ? "Resume" : "Start"))
 
             circleButton(
                 systemImage: engine.accentFirstBeat ? "metronome.fill" : "metronome",
@@ -35,6 +37,20 @@ struct TransportControlsView: View {
                 isActive: engine.accentFirstBeat,
                 action: { engine.accentFirstBeat.toggle() }
             )
+        }
+        if engine.hasActiveSession {
+            Button(action: engine.stop) {
+                Label("END & SAVE", systemImage: "stop.fill")
+                    .font(.caption.bold())
+                    .tracking(1)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 8)
+                    .background(Theme.danger, in: Capsule())
+                    .foregroundStyle(.black)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("End Session")
+        }
         }
     }
 

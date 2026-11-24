@@ -8,16 +8,17 @@ import SwiftUI
 struct SessionTimerView: View {
     let elapsedSeconds: TimeInterval
     let isPlaying: Bool
+    var isPaused: Bool = false
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "timer")
+            Image(systemName: isPaused ? "pause.circle" : "timer")
                 .font(.caption.bold())
             Text(formatted)
                 .font(.callout.bold())
                 .monospacedDigit()
         }
-        .foregroundStyle(isPlaying ? Theme.accentSecondary : Theme.textSecondary)
+        .foregroundStyle(isPlaying ? Theme.accentSecondary : (isPaused ? Theme.accent : Theme.textSecondary))
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
         .background(Theme.surfaceElevated, in: Capsule())

@@ -38,6 +38,18 @@ struct HistoryView: View {
                                         sessionRow(session)
                                             .contentShape(Rectangle())
                                             .onTapGesture { sessionBeingEdited = session }
+                                            .contextMenu {
+                                                Button {
+                                                    sessionBeingEdited = session
+                                                } label: {
+                                                    Label("Edit", systemImage: "pencil")
+                                                }
+                                                Button(role: .destructive) {
+                                                    sessionPendingDeletion = session
+                                                } label: {
+                                                    Label("Delete", systemImage: "trash")
+                                                }
+                                            }
                                             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                                 Button {
                                                     sessionBeingEdited = session
@@ -147,6 +159,11 @@ struct HistoryView: View {
             }
         }
         .preferredColorScheme(.dark)
+        #if os(macOS)
+        // Sheets on macOS size to their content; a List has no intrinsic
+        // size, so without this the history collapses to nothing.
+        .frame(minWidth: 480, idealWidth: 520, minHeight: 520, idealHeight: 600)
+        #endif
     }
 
     // MARK: Grouping
@@ -232,6 +249,15 @@ struct HistoryView: View {
                 Text(session.date, style: .time)
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
+                #if os(macOS)
+                Button { sessionBeingEdited = session } label: { Image(systemName: "pencil") }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Edit Session")
+                Button { sessionPendingDeletion = session } label: { Image(systemName: "trash") }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(Theme.danger)
+                    .accessibilityLabel("Delete Session")
+                #endif
             }
             HStack(spacing: 14) {
                 if session.kind == .repertoire {
@@ -303,7 +329,7 @@ private extension PracticeSession {
     }
 }
 
-private struct SongEntry: Identifiable {
+struct SongEntry: Identifiable {
     let id = UUID()
     var title: String
     var band: String
@@ -311,7 +337,7 @@ private struct SongEntry: Identifiable {
 }
 
 /// Album cover thumbnail, with a neutral placeholder when there is none.
-private struct ArtworkView: View {
+struct ArtworkView: View {
     let urlString: String?
     let size: CGFloat
 
@@ -346,7 +372,7 @@ private struct ArtworkView: View {
 
 /// One song in the repertoire form: title + band, with live suggestions from
 /// the iTunes Search API while the title field is being edited.
-private struct SongRowView: View {
+struct SongRowView: View {
     @Binding var song: SongEntry
     let bandSuggestions: [String]
 
@@ -580,6 +606,9 @@ private struct EditSessionView: View {
         }
         .preferredColorScheme(.dark)
         .tint(Theme.accent)
+        #if os(macOS)
+        .frame(minWidth: 460, idealWidth: 480, minHeight: 440, idealHeight: 520)
+        #endif
     }
 
     private var title: String {
