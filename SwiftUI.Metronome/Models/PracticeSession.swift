@@ -35,6 +35,8 @@ struct PracticeSession: Identifiable, Codable, Equatable {
     let usedSpeedTrainer: Bool
     var kind: SessionKind
     var songs: [RepertoireSong]
+    /// Last local modification; decides which copy wins when devices disagree.
+    var updatedAt: Date
 
     init(
         id: UUID = UUID(),
@@ -45,7 +47,8 @@ struct PracticeSession: Identifiable, Codable, Equatable {
         subdivision: Subdivision,
         usedSpeedTrainer: Bool,
         kind: SessionKind = .practice,
-        songs: [RepertoireSong] = []
+        songs: [RepertoireSong] = [],
+        updatedAt: Date = Date()
     ) {
         self.id = id
         self.date = date
@@ -56,6 +59,7 @@ struct PracticeSession: Identifiable, Codable, Equatable {
         self.usedSpeedTrainer = usedSpeedTrainer
         self.kind = kind
         self.songs = songs
+        self.updatedAt = updatedAt
     }
 
     // Sessions saved before repertoire support have no `kind`/`songs` keys.
@@ -69,6 +73,7 @@ struct PracticeSession: Identifiable, Codable, Equatable {
         subdivision = try c.decode(Subdivision.self, forKey: .subdivision)
         usedSpeedTrainer = try c.decode(Bool.self, forKey: .usedSpeedTrainer)
         kind = try c.decodeIfPresent(SessionKind.self, forKey: .kind) ?? .practice
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? date
         if let structured = try? c.decodeIfPresent([RepertoireSong].self, forKey: .songs) {
             songs = structured
         } else if let titles = try? c.decodeIfPresent([String].self, forKey: .songs) {

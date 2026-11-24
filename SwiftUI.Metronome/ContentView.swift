@@ -11,6 +11,7 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @StateObject private var engine = MetronomeEngine()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showingHistory = false
     @State private var showingRepertoire = false
 
@@ -37,6 +38,10 @@ struct ContentView: View {
             .padding(useTwoColumn ? 28 : 20)
         }
         .preferredColorScheme(.dark)
+        .task(id: scenePhase) {
+            // Pick up sessions created on other devices whenever the app is shown.
+            if scenePhase == .active { await engine.historyStore.refreshFromCloud() }
+        }
         .sheet(isPresented: $showingHistory) {
             HistoryView(historyStore: engine.historyStore)
         }
