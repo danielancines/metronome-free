@@ -47,11 +47,17 @@ final class MetronomeEngine: ObservableObject {
     }
 
     @Published private(set) var isPlaying = false
+    /// The click is silenced but the session (and its timer) is kept open.
+    @Published private(set) var isPaused = false
+    var hasActiveSession: Bool { isPlaying || isPaused }
     @Published private(set) var currentBeat = 0
     @Published private(set) var currentSubTick = 0
     @Published private(set) var elapsedSeconds: TimeInterval = 0
 
     let historyStore = PracticeHistoryStore()
+    /// Songs chosen on the main screen. While non-empty, the next logged
+    /// session is saved as a repertoire session instead of a plain practice one.
+    @Published var repertoire: [RepertoireSong] = []
 
     // Speed trainer: gradually ramps the tempo up over a practice session.
     @Published var trainingModeEnabled = false
@@ -84,6 +90,13 @@ final class MetronomeEngine: ObservableObject {
     private var isAudioSessionConfigured = false
 
     private var sessionStartDate: Date?
+    /// Time from earlier play segments of the current session (before pauses).
+    private var accumulatedTime: TimeInterval = 0
+    /// Start of the segment that is currently playing.
+    private var segmentStartDate: Date?
+    private var currentSessionDuration: TimeInterval {
+        accumulatedTime + (segmentStartDate.map { Date().timeIntervalSince($0) } ?? 0)
+    }
     private var elapsedTimer: Timer?
     private static let minimumSessionDurationToLog: TimeInterval = 3
 
@@ -161,7 +174,7 @@ final class MetronomeEngine: ObservableObject {
                   let rawType = info[AVAudioSessionInterruptionTypeKey] as? UInt,
                   let type = AVAudioSession.InterruptionType(rawValue: rawType),
                   type == .began else { return }
-            self.stop()
+            self.pause()
         }
         #endif
     }
@@ -169,13 +182,13 @@ final class MetronomeEngine: ObservableObject {
     // MARK: Transport
 
     func togglePlay() {
-        isPlaying ? stop() : start()
+        isPlaying ? pause() : start()
     }
 
     func start() {
         guard !isPlaying else { return }
 
-        if trainingModeEnabled {
+        if trainingModeEnabled, !isPaused {
             bpm = trainingStartBPM.clamped(to: Self.bpmRange)
         }
 
@@ -201,50 +214,77 @@ final class MetronomeEngine: ObservableObject {
         isPlaying = true
         startScheduler()
 
-        sessionStartDate = Date()
-        elapsedSeconds = 0
+        if !isPaused {
+            sessionStartDate = Date()
+            accumulatedTime = 0
+            elapsedSeconds = 0
+        }
+        isPaused = false
+        segmentStartDate = Date()
         startElapsedTimer()
     }
 
-    func stop() {
+    /// Silences the click but keeps the session open; `start()` resumes it.
+    func pause() {
         guard isPlaying else { return }
+        silenceClick()
+        accumulatedTime = currentSessionDuration
+        segmentStartDate = nil
+        elapsedSeconds = accumulatedTime
+        isPaused = true
+    }
+
+    /// Ends the session (playing or paused) and logs it.
+    func stop() {
+        guard hasActiveSession else { return }
+        if isPlaying { silenceClick() }
+        let duration = currentSessionDuration
+        recordSessionIfNeeded(duration: duration)
+        sessionStartDate = nil
+        segmentStartDate = nil
+        accumulatedTime = 0
+        elapsedSeconds = 0
+        isPaused = false
+    }
+
+    private func silenceClick() {
         isPlaying = false
         schedulerTimer?.cancel()
         schedulerTimer = nil
         playerNode.stop()
         currentBeat = 0
         currentSubTick = 0
-
         elapsedTimer?.invalidate()
         elapsedTimer = nil
-        recordSessionIfNeeded()
-        sessionStartDate = nil
-        elapsedSeconds = 0
     }
 
     private func startElapsedTimer() {
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self, let start = self.sessionStartDate else { return }
-            self.elapsedSeconds = Date().timeIntervalSince(start)
+            guard let self else { return }
+            self.elapsedSeconds = self.currentSessionDuration
         }
         RunLoop.main.add(timer, forMode: .common)
         elapsedTimer = timer
     }
 
-    private func recordSessionIfNeeded() {
+    private func recordSessionIfNeeded(duration: TimeInterval) {
         guard let start = sessionStartDate else { return }
-        let duration = Date().timeIntervalSince(start)
         guard duration >= Self.minimumSessionDurationToLog else { return }
 
+        let isRepertoire = !repertoire.isEmpty
         let session = PracticeSession(
             date: start,
             duration: duration,
-            bpm: Int(bpm.rounded()),
+            bpm: isRepertoire ? 0 : Int(bpm.rounded()),
             beatsPerMeasure: beatsPerMeasure,
             subdivision: subdivision,
-            usedSpeedTrainer: trainingModeEnabled
+            usedSpeedTrainer: trainingModeEnabled,
+            kind: isRepertoire ? .repertoire : .practice,
+            songs: repertoire
         )
         historyStore.add(session)
+        // The chosen songs belong to this session only.
+        repertoire = []
     }
 
     func adjustBPM(by delta: Double) {

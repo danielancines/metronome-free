@@ -2,22 +2,15 @@
 //  FitToHeight.swift
 //  SwiftUI.Metronome
 //
-//  Measures its content's natural height and scales it down just enough
-//  to fit the available space, so the screen never needs to scroll —
-//  on any iPhone or iPad, in any orientation.
+//  Measures its content's natural height and scales it down just enough to
+//  fit the available space, so the screen never needs to scroll and adapts
+//  whenever components are added or removed.
 //
 
 import SwiftUI
 
-private struct ContentHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 struct FitToHeight<Content: View>: View {
-    @State private var measuredHeight: CGFloat = 0
+    @State private var naturalHeight: CGFloat = 0
     private let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -26,19 +19,18 @@ struct FitToHeight<Content: View>: View {
 
     var body: some View {
         GeometryReader { geo in
-            let scale = measuredHeight > 0 ? min(1, geo.size.height / measuredHeight) : 1
-            let fits = scale >= 0.999
-
+            let scale = naturalHeight > 0 ? min(1, geo.size.height / naturalHeight) : 1
+            let scaledHeight = naturalHeight * scale
             content
+                // Lay out wider by 1/scale so that, once scaled down, the content
+                // still spans the full width: only the height is adjusted.
+                .frame(width: geo.size.width / scale)
                 .fixedSize(horizontal: false, vertical: true)
-                .background(
-                    GeometryReader { inner in
-                        Color.clear.preference(key: ContentHeightKey.self, value: inner.size.height)
-                    }
-                )
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { naturalHeight = $0 }
                 .scaleEffect(scale, anchor: .top)
-                .frame(width: geo.size.width, height: geo.size.height, alignment: fits ? .center : .top)
+                // Pin to the top, then center vertically when there's spare room.
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+                .offset(y: max(0, (geo.size.height - scaledHeight) / 2))
         }
-        .onPreferenceChange(ContentHeightKey.self) { measuredHeight = $0 }
     }
 }

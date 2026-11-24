@@ -11,7 +11,9 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @StateObject private var engine = MetronomeEngine()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showingHistory = false
+    @State private var showingRepertoire = false
 
     /// iPad, and any iPhone in landscape, get the wider two-column layout —
     /// both have more width than height to work with.
@@ -36,8 +38,15 @@ struct ContentView: View {
             .padding(useTwoColumn ? 28 : 20)
         }
         .preferredColorScheme(.dark)
+        .task(id: scenePhase) {
+            // Pick up sessions created on other devices whenever the app is shown.
+            if scenePhase == .active { await engine.historyStore.refreshFromCloud() }
+        }
         .sheet(isPresented: $showingHistory) {
             HistoryView(historyStore: engine.historyStore)
+        }
+        .sheet(isPresented: $showingRepertoire) {
+            RepertoirePickerView(engine: engine)
         }
     }
 
@@ -46,6 +55,7 @@ struct ContentView: View {
     private var singleColumnLayout: some View {
         VStack(spacing: 16) {
             header
+            nowPlayingSongs
 
             BeatIndicatorView(
                 beatsPerMeasure: engine.beatsPerMeasure,
@@ -57,7 +67,7 @@ struct ContentView: View {
             TempoDisplayView(engine: engine)
             TempoControlsView(engine: engine)
 
-            SessionTimerView(elapsedSeconds: engine.elapsedSeconds, isPlaying: engine.isPlaying)
+            SessionTimerView(elapsedSeconds: engine.elapsedSeconds, isPlaying: engine.isPlaying, isPaused: engine.isPaused)
 
             TransportControlsView(engine: engine)
 
@@ -73,6 +83,7 @@ struct ContentView: View {
         HStack(alignment: .top, spacing: 32) {
             VStack(spacing: 20) {
                 header
+                nowPlayingSongs
 
                 BeatIndicatorView(
                     beatsPerMeasure: engine.beatsPerMeasure,
@@ -84,7 +95,7 @@ struct ContentView: View {
                 TempoDisplayView(engine: engine)
                 TempoControlsView(engine: engine)
 
-                SessionTimerView(elapsedSeconds: engine.elapsedSeconds, isPlaying: engine.isPlaying)
+                SessionTimerView(elapsedSeconds: engine.elapsedSeconds, isPlaying: engine.isPlaying, isPaused: engine.isPaused)
 
                 TransportControlsView(engine: engine)
             }
@@ -96,6 +107,45 @@ struct ContentView: View {
                 TrainingModeView(engine: engine)
             }
             .frame(maxWidth: 440)
+        }
+    }
+
+    /// The songs picked for this session, so it's clear what is being studied.
+    @ViewBuilder
+    private var nowPlayingSongs: some View {
+        if !engine.repertoire.isEmpty {
+            Button {
+                showingRepertoire = true
+            } label: {
+                VStack(spacing: 4) {
+                    ForEach(Array(engine.repertoire.prefix(3).enumerated()), id: \.offset) { _, song in
+                        HStack(spacing: 8) {
+                            ArtworkView(urlString: song.artworkURL, size: 28)
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(song.title)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Theme.textPrimary)
+                                    .lineLimit(1)
+                                Text(song.band)
+                                    .font(.caption2)
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    if engine.repertoire.count > 3 {
+                        Text("+\(engine.repertoire.count - 3) more")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                }
+                .padding(6)
+                .frame(maxWidth: 360, alignment: .leading)
+                .background(Theme.surfaceElevated, in: RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Repertoire songs")
         }
     }
 
@@ -118,7 +168,16 @@ struct ContentView: View {
 
     private var header: some View {
         HStack {
-            Color.clear.frame(width: 28, height: 28)
+            Button {
+                showingRepertoire = true
+            } label: {
+                Image(systemName: "music.note.list")
+                    .font(.subheadline)
+                    .foregroundStyle(engine.repertoire.isEmpty ? Theme.textSecondary : Theme.accent)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Practice Repertoire")
             Spacer()
             Text("EVIL METRONOME")
                 .font(.caption.bold())
