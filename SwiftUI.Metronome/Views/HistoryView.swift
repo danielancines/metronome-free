@@ -240,71 +240,107 @@ struct HistoryView: View {
     }
 
     private func sessionRow(_ session: PracticeSession) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(session.date, style: .date)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(Theme.textPrimary)
-                Spacer()
-                Text(session.date, style: .time)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
-                #if os(macOS)
-                Button { sessionBeingEdited = session } label: { Image(systemName: "pencil") }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Edit Session")
-                Button { sessionPendingDeletion = session } label: { Image(systemName: "trash") }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(Theme.danger)
-                    .accessibilityLabel("Delete Session")
-                #endif
-            }
-            HStack(spacing: 14) {
-                if session.kind == .repertoire {
-                    Label("Repertoire", systemImage: "music.note.list")
-                    if session.duration > 0 {
-                        Label(durationText(session.duration), systemImage: "timer")
+        let isRepertoire = session.kind == .repertoire
+        return HStack(alignment: .top, spacing: 12) {
+            // Kind badge: tells practice and repertoire sessions apart at a glance.
+            Image(systemName: isRepertoire ? "music.note.list" : "metronome")
+                .font(.subheadline.bold())
+                .foregroundStyle(isRepertoire ? Theme.accent : Theme.accentSecondary)
+                .frame(width: 34, height: 34)
+                .background(
+                    (isRepertoire ? Theme.accent : Theme.accentSecondary).opacity(0.16),
+                    in: RoundedRectangle(cornerRadius: 9)
+                )
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                // Header: when it happened, and how long it lasted.
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(session.date, style: .date)
+                            .font(.subheadline.bold())
+                            .foregroundStyle(Theme.textPrimary)
+                        Text(session.date, style: .time)
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
                     }
-                } else {
-                    Label(durationText(session.duration), systemImage: "timer")
-                    Label("\(session.bpm) BPM", systemImage: "metronome")
-                    if session.usedSpeedTrainer {
-                        Label("Speed Trainer", systemImage: "chart.line.uptrend.xyaxis")
+                    Spacer(minLength: 8)
+                    if session.duration > 0 {
+                        Text(durationText(session.duration))
+                            .font(.title3.bold())
+                            .monospacedDigit()
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                    #if os(macOS)
+                    Button { sessionBeingEdited = session } label: { Image(systemName: "pencil") }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Edit Session")
+                    Button { sessionPendingDeletion = session } label: { Image(systemName: "trash") }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(Theme.danger)
+                        .accessibilityLabel("Delete Session")
+                    #endif
+                }
+
+                // The note, in a single line; the full text is in the edit sheet.
+                if !session.notes.isEmpty {
+                    Text(session.notes)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("SessionNotesText")
+                }
+
+                // Details as chips.
+                if !isRepertoire {
+                    HStack(spacing: 6) {
+                        chip("\(session.bpm) BPM", systemImage: "gauge.with.needle")
+                        if session.usedSpeedTrainer {
+                            chip("Speed Trainer", systemImage: "chart.line.uptrend.xyaxis")
+                        }
                     }
                 }
-            }
-            .font(.caption.bold())
-            .foregroundStyle(Theme.accentSecondary)
-            if !session.notes.isEmpty {
-                Text(session.notes)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            if session.kind == .repertoire, !session.songs.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(session.songs.enumerated()), id: \.offset) { _, song in
-                        HStack(spacing: 8) {
-                            ArtworkView(urlString: song.artworkURL, size: 32)
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text(song.title)
-                                    .font(.caption.bold())
-                                    .foregroundStyle(Theme.textPrimary)
-                                if !song.band.isEmpty {
-                                    Text(song.band)
-                                        .font(.caption2)
-                                        .foregroundStyle(Theme.textSecondary)
+
+                if isRepertoire, !session.songs.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(session.songs.enumerated()), id: \.offset) { _, song in
+                            HStack(spacing: 8) {
+                                ArtworkView(urlString: song.artworkURL, size: 32)
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(song.title)
+                                        .font(.caption.bold())
+                                        .foregroundStyle(Theme.textPrimary)
+                                        .lineLimit(1)
+                                    if !song.band.isEmpty {
+                                        Text(song.band)
+                                            .font(.caption2)
+                                            .foregroundStyle(Theme.textSecondary)
+                                            .lineLimit(1)
+                                    }
                                 }
                             }
                         }
                     }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.surfaceElevated.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
                 }
-                .padding(.top, 2)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SessionRow")
+    }
+
+    private func chip(_ text: String, systemImage: String) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(.caption2.bold())
+            .foregroundStyle(Theme.accentSecondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Theme.accentSecondary.opacity(0.14), in: Capsule())
     }
 
     private func durationText(_ duration: TimeInterval) -> String {
