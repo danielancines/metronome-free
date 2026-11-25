@@ -275,6 +275,13 @@ struct HistoryView: View {
             }
             .font(.caption.bold())
             .foregroundStyle(Theme.accentSecondary)
+            if !session.notes.isEmpty {
+                Text(session.notes)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             if session.kind == .repertoire, !session.songs.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(session.songs.enumerated()), id: \.offset) { _, song in
@@ -503,6 +510,7 @@ private struct EditSessionView: View {
     @State private var bpm: Int
     @State private var date: Date
     @State private var songs: [SongEntry]
+    @State private var notes: String
 
     init(session: PracticeSession, isNew: Bool, knownBands: [String], onSave: @escaping (PracticeSession) -> Void) {
         self.session = session
@@ -514,6 +522,7 @@ private struct EditSessionView: View {
         _seconds = State(initialValue: total % 60)
         _bpm = State(initialValue: session.bpm == 0 ? 100 : session.bpm)
         _date = State(initialValue: session.date)
+        _notes = State(initialValue: session.notes)
         let existing = session.songs.map { SongEntry(title: $0.title, band: $0.band, artworkURL: $0.artworkURL) }
         _songs = State(initialValue: existing.isEmpty && session.kind == .repertoire ? [SongEntry(title: "", band: "")] : existing)
     }
@@ -551,6 +560,11 @@ private struct EditSessionView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Notes") {
+                    TextField("Notes…", text: $notes, axis: .vertical)
+                        .lineLimit(3...8)
+                        .accessibilityIdentifier("SessionNotes")
+                }
                 Section("Date") {
                     DatePicker("Started", selection: $date, in: ...Date())
                 }
@@ -592,6 +606,7 @@ private struct EditSessionView: View {
                         var updated = session
                         updated.duration = TimeInterval(totalSeconds)
                         updated.date = date
+                        updated.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
                         if isRepertoire {
                             updated.songs = filledSongs
                         } else {

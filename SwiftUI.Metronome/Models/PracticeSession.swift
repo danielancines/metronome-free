@@ -35,6 +35,8 @@ struct PracticeSession: Identifiable, Codable, Equatable {
     let usedSpeedTrainer: Bool
     var kind: SessionKind
     var songs: [RepertoireSong]
+    /// Free text: a name for the session, reminders, anything worth keeping.
+    var notes: String
     /// Last local modification; decides which copy wins when devices disagree.
     var updatedAt: Date
 
@@ -48,6 +50,7 @@ struct PracticeSession: Identifiable, Codable, Equatable {
         usedSpeedTrainer: Bool,
         kind: SessionKind = .practice,
         songs: [RepertoireSong] = [],
+        notes: String = "",
         updatedAt: Date = Date()
     ) {
         self.id = id
@@ -59,6 +62,7 @@ struct PracticeSession: Identifiable, Codable, Equatable {
         self.usedSpeedTrainer = usedSpeedTrainer
         self.kind = kind
         self.songs = songs
+        self.notes = notes
         self.updatedAt = updatedAt
     }
 
@@ -73,6 +77,7 @@ struct PracticeSession: Identifiable, Codable, Equatable {
         subdivision = try c.decode(Subdivision.self, forKey: .subdivision)
         usedSpeedTrainer = try c.decode(Bool.self, forKey: .usedSpeedTrainer)
         kind = try c.decodeIfPresent(SessionKind.self, forKey: .kind) ?? .practice
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? date
         if let structured = try? c.decodeIfPresent([RepertoireSong].self, forKey: .songs) {
             songs = structured

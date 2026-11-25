@@ -367,7 +367,7 @@
 				CODE_SIGN_ENTITLEMENTS = SwiftUI.Metronome.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "SwiftUI.Metronome-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = WUZMZ57JUU;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -417,7 +417,7 @@
 				CODE_SIGN_ENTITLEMENTS = SwiftUI.Metronome.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "SwiftUI.Metronome-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = WUZMZ57JUU;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
