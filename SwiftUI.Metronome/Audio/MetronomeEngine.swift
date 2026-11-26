@@ -10,6 +10,9 @@
 //
 
 import AVFoundation
+#if os(iOS)
+import UIKit
+#endif
 import Combine
 
 @MainActor
@@ -24,6 +27,7 @@ final class MetronomeEngine: ObservableObject {
             let clamped = bpm.clamped(to: Self.bpmRange)
             if clamped != bpm { bpm = clamped; return }
             UserDefaults.standard.set(bpm, forKey: Keys.bpm)
+            updateNowPlaying()
         }
     }
 
@@ -57,7 +61,9 @@ final class MetronomeEngine: ObservableObject {
     let historyStore = PracticeHistoryStore()
     /// Songs chosen on the main screen. While non-empty, the next logged
     /// session is saved as a repertoire session instead of a plain practice one.
-    @Published var repertoire: [RepertoireSong] = []
+    @Published var repertoire: [RepertoireSong] = [] {
+        didSet { updateNowPlaying() }
+    }
 
     // Speed trainer: gradually ramps the tempo up over a practice session.
     @Published var trainingModeEnabled = false
@@ -89,6 +95,8 @@ final class MetronomeEngine: ObservableObject {
     private var interruptionObserver: NSObjectProtocol?
     private var isAudioSessionConfigured = false
 
+    /// End of the progress bar currently shown on the lock-screen card.
+    var nowPlayingDuration: TimeInterval = 0
     private var sessionStartDate: Date?
     /// Time from earlier play segments of the current session (before pauses).
     private var accumulatedTime: TimeInterval = 0
@@ -125,6 +133,7 @@ final class MetronomeEngine: ObservableObject {
 
         setupAudioGraph()
         observeInterruptions()
+        setupRemoteCommands()
     }
 
     deinit {
@@ -154,8 +163,16 @@ final class MetronomeEngine: ObservableObject {
         #if os(iOS) || os(visionOS)
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            // Not mixable on purpose: only a non-mixing app can own the lock-screen
+            // controls, so starting the metronome pauses other apps' audio.
+            try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
+            // Register the lock-screen commands only once the session is active
+            // and the app is receiving remote events, or iOS shows no buttons.
+            #if os(iOS)
+            UIApplication.shared.beginReceivingRemoteControlEvents()
+            #endif
+            setupRemoteCommands()
         } catch {
             print("MetronomeEngine: failed to configure audio session — \(error)")
         }
@@ -192,10 +209,10 @@ final class MetronomeEngine: ObservableObject {
             bpm = trainingStartBPM.clamped(to: Self.bpmRange)
         }
 
-        if !isAudioSessionConfigured {
-            configureAudioSession()
-            isAudioSessionConfigured = true
-        }
+        // Always re-activate: an interruption or a long pause can leave the
+        // session inactive, and starting from the lock screen would then fail.
+        configureAudioSession()
+        isAudioSessionConfigured = true
 
         do {
             if !engine.isRunning {
@@ -222,6 +239,7 @@ final class MetronomeEngine: ObservableObject {
         isPaused = false
         segmentStartDate = Date()
         startElapsedTimer()
+        updateNowPlaying()
     }
 
     /// Silences the click but keeps the session open; `start()` resumes it.
@@ -232,6 +250,7 @@ final class MetronomeEngine: ObservableObject {
         segmentStartDate = nil
         elapsedSeconds = accumulatedTime
         isPaused = true
+        updateNowPlaying()
     }
 
     /// Ends the session (playing or paused) and logs it.
@@ -245,6 +264,7 @@ final class MetronomeEngine: ObservableObject {
         accumulatedTime = 0
         elapsedSeconds = 0
         isPaused = false
+        updateNowPlaying()
     }
 
     private func silenceClick() {
@@ -262,6 +282,8 @@ final class MetronomeEngine: ObservableObject {
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.elapsedSeconds = self.currentSessionDuration
+            // Keep the lock-screen bar from running past its end.
+            if self.elapsedSeconds >= self.nowPlayingDuration { self.updateNowPlaying() }
         }
         RunLoop.main.add(timer, forMode: .common)
         elapsedTimer = timer
