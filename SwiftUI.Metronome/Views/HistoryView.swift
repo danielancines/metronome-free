@@ -547,6 +547,7 @@ private struct EditSessionView: View {
     @State private var date: Date
     @State private var songs: [SongEntry]
     @State private var notes: String
+    @State private var kind: SessionKind
 
     init(session: PracticeSession, isNew: Bool, knownBands: [String], onSave: @escaping (PracticeSession) -> Void) {
         self.session = session
@@ -559,11 +560,12 @@ private struct EditSessionView: View {
         _bpm = State(initialValue: session.bpm == 0 ? 100 : session.bpm)
         _date = State(initialValue: session.date)
         _notes = State(initialValue: session.notes)
+        _kind = State(initialValue: session.kind)
         let existing = session.songs.map { SongEntry(title: $0.title, band: $0.band, artworkURL: $0.artworkURL) }
         _songs = State(initialValue: existing.isEmpty && session.kind == .repertoire ? [SongEntry(title: "", band: "")] : existing)
     }
 
-    private var isRepertoire: Bool { session.kind == .repertoire }
+    private var isRepertoire: Bool { kind == .repertoire }
     private var bpmRange: ClosedRange<Int> { 30...300 }
     private var totalSeconds: Int { minutes * 60 + seconds }
     /// Entries the user actually filled in (fully blank rows are ignored).
@@ -596,6 +598,15 @@ private struct EditSessionView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Type") {
+                    Picker("Type", selection: $kind) {
+                        Text("Practice").tag(SessionKind.practice)
+                        Text("Repertoire").tag(SessionKind.repertoire)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .accessibilityIdentifier("SessionKindPicker")
+                }
                 Section("Notes") {
                     TextField("Notes…", text: $notes, axis: .vertical)
                         .lineLimit(3...8)
@@ -627,6 +638,12 @@ private struct EditSessionView: View {
                     }
                 }
             }
+            .onChange(of: kind) { _, newKind in
+                // Switching to repertoire: start with a blank song row to fill in.
+                if newKind == .repertoire, songs.isEmpty {
+                    songs = [SongEntry(title: "", band: "")]
+                }
+            }
             .scrollContentBackground(.hidden)
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle(title)
@@ -643,10 +660,13 @@ private struct EditSessionView: View {
                         updated.duration = TimeInterval(totalSeconds)
                         updated.date = date
                         updated.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                        updated.kind = kind
                         if isRepertoire {
                             updated.songs = filledSongs
+                            updated.bpm = 0
                         } else {
                             updated.bpm = bpm
+                            updated.songs = []
                         }
                         onSave(updated)
                         dismiss()
